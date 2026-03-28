@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "365526642043",
+    "project_id": "smart-attendance-sys-metu",
+    "storage_bucket": "smart-attendance-sys-metu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:365526642043:android:b1be2886a0dfb8f512a1de",
+        "android_client_info": {
+          "package_name": "com.example.smart_atte_sys"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUAlFs19mqkZ2ZIiEpvlNAsLp9bevFTPk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
