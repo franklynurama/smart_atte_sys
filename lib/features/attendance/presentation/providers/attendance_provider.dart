@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/download_bytes.dart';
+import '../../data/models/attendance_session_model.dart';
+import '../../data/models/unverified_record_model.dart';
 import '../../data/services/attendance_service.dart';
 import '../../data/services/backend_api_service.dart';
 import '../../data/services/file_service.dart';
@@ -245,7 +247,7 @@ class AttendanceMutationNotifier extends AsyncNotifier<AttendanceMutationState> 
 
   Future<String?> processDecrypted({
     required String courseId,
-    required String recordKey,
+    String? recordKey,
     required DecryptAction action,
     required BackendDownloadFormat downloadFormat,
   }) async {
@@ -282,6 +284,9 @@ class AttendanceMutationNotifier extends AsyncNotifier<AttendanceMutationState> 
       );
 
       if (action == DecryptAction.update || action == DecryptAction.both) {
+        if (recordKey == null || recordKey.trim().isEmpty) {
+          throw StateError('Please select a session first.');
+        }
         final attendedStudentIds =
             result.updateRecords.map((e) => (e['student_id'] ?? '').trim()).where((e) => e.isNotEmpty).toList();
         await _attendanceService.updateAttendanceRecord(
@@ -350,5 +355,80 @@ class AttendanceMutationNotifier extends AsyncNotifier<AttendanceMutationState> 
 
 final attendanceMutationProvider = AsyncNotifierProvider<AttendanceMutationNotifier, AttendanceMutationState>(
   AttendanceMutationNotifier.new,
+);
+
+final normalAttendanceSessionsProvider =
+    FutureProvider.family<List<AttendanceSessionModel>, String>((ref, courseId) async {
+  return AttendanceService().getNormalAttendanceSessions(courseId);
+});
+
+final makeupAttendanceSessionsProvider =
+    FutureProvider.family<List<AttendanceSessionModel>, String>((ref, courseId) async {
+  return AttendanceService().getMakeupAttendanceSessions(courseId);
+});
+
+final unverifiedRecordsProvider =
+    FutureProvider.family<List<UnverifiedRecordModel>, String>((ref, courseId) async {
+  return AttendanceService().getUnverifiedRecords(courseId);
+});
+
+class AttendanceGridEditState {
+  final Map<String, Map<String, bool>> normalDraft;
+  final Map<String, Map<String, bool>> makeupDraft;
+
+  const AttendanceGridEditState({
+    required this.normalDraft,
+    required this.makeupDraft,
+  });
+
+  factory AttendanceGridEditState.initial() => const AttendanceGridEditState(
+        normalDraft: {},
+        makeupDraft: {},
+      );
+}
+
+class AttendanceGridEditNotifier extends StateNotifier<AttendanceGridEditState> {
+  AttendanceGridEditNotifier() : super(AttendanceGridEditState.initial());
+
+  void seedIfMissing({
+    required bool isMakeup,
+    required Map<String, Map<String, bool>> source,
+  }) {
+    final target = isMakeup ? state.makeupDraft : state.normalDraft;
+    if (target.isNotEmpty) return;
+    if (isMakeup) {
+      state = AttendanceGridEditState(
+        normalDraft: state.normalDraft,
+        makeupDraft: source,
+      );
+    } else {
+      state = AttendanceGridEditState(
+        normalDraft: source,
+        makeupDraft: state.makeupDraft,
+      );
+    }
+  }
+
+  void toggle({
+    required bool isMakeup,
+    required String sessionId,
+    required String studentId,
+    required bool value,
+  }) {
+    final target = Map<String, Map<String, bool>>.from(isMakeup ? state.makeupDraft : state.normalDraft);
+    final currentSession = Map<String, bool>.from(target[sessionId] ?? const <String, bool>{});
+    currentSession[studentId] = value;
+    target[sessionId] = currentSession;
+    state = isMakeup
+        ? AttendanceGridEditState(normalDraft: state.normalDraft, makeupDraft: target)
+        : AttendanceGridEditState(normalDraft: target, makeupDraft: state.makeupDraft);
+  }
+
+  void clear() => state = AttendanceGridEditState.initial();
+}
+
+final attendanceGridEditProvider =
+    StateNotifierProvider<AttendanceGridEditNotifier, AttendanceGridEditState>(
+  (ref) => AttendanceGridEditNotifier(),
 );
 

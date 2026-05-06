@@ -76,13 +76,13 @@ class DashboardPage extends ConsumerWidget {
                 children: [
                   DashboardCard(
                     icon: Icons.add_box_outlined,
-                    title: 'Add/Delete Courses',
+                    title: 'Add Courses',
                     description: 'Create courses, upload rosters, manage schedules.',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.addCourse),
                   ),
                   DashboardCard(
                     icon: Icons.view_list_outlined,
-                    title: 'View Courses',
+                    title: 'View/Delete Courses',
                     description: 'Attendance overview by session.',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.viewCourses),
                   ),
@@ -97,6 +97,18 @@ class DashboardPage extends ConsumerWidget {
                     title: 'Decrypt Attendance',
                     description: 'Decrypt encrypted attendance files.',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.decryptAttendance),
+                  ),
+                  DashboardCard(
+                    icon: Icons.access_time_filled_outlined,
+                    title: 'Makeup Attendance',
+                    description: 'Record attendance for makeup sessions.',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.makeupAttendance),
+                  ),
+                  DashboardCard(
+                    icon: Icons.person_add_alt_1_outlined,
+                    title: 'Add Student',
+                    description: 'Add a student manually to a selected course.',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.addStudent),
                   ),
                 ],
               ),

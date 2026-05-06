@@ -23,6 +23,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
   late final TextEditingController nameController;
   late final TextEditingController codeController;
   late final TextEditingController abbrController;
+  late final TextEditingController sectionController;
 
   @override
   void initState() {
@@ -30,8 +31,10 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
     nameController = TextEditingController();
     codeController = TextEditingController();
     abbrController = TextEditingController();
+    sectionController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(courseMutationProvider.notifier).clearFeedback();
+      ref.read(courseDraftProvider.notifier).loadOfficialCourseListFromAsset();
     });
   }
 
@@ -40,6 +43,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
     nameController.dispose();
     codeController.dispose();
     abbrController.dispose();
+    sectionController.dispose();
     super.dispose();
   }
 
@@ -48,6 +52,10 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
     final draft = ref.watch(courseDraftProvider);
     final mutation = ref.watch(courseMutationProvider);
     final mutationState = mutation.valueOrNull ?? CourseMutationState.initial();
+    if (nameController.text != draft.courseName) nameController.text = draft.courseName;
+    if (codeController.text != draft.courseCode) codeController.text = draft.courseCode;
+    if (abbrController.text != draft.abbreviation) abbrController.text = draft.abbreviation;
+    if (sectionController.text != draft.section) sectionController.text = draft.section;
 
     ref.listen(courseMutationProvider, (previous, next) {
       final s = next.valueOrNull;
@@ -67,6 +75,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
         nameController.clear();
         codeController.clear();
         abbrController.clear();
+        sectionController.clear();
         Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.dashboard, (r) => false);
         return;
       }
@@ -97,7 +106,22 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
                   label: 'Course Name',
                   controller: nameController,
                   validator: (v) => v == null || v.trim().isEmpty ? 'Course name is required.' : null,
-                  hintText: 'e.g., Computer Networks',
+                  hintText: 'e.g., Data Management and File Structures',
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                    isExpanded: true,
+                  initialValue: draft.selectedOfficialCourseKey,
+                  decoration: const InputDecoration(labelText: 'Select course from official list'),
+                  items: draft.officialCourses
+                      .map(
+                        (c) => DropdownMenuItem<String>(
+                          value: c.selectionKey,
+                          child: Text('${c.code} • ${c.abbreviation} • ${c.name}${c.section.isNotEmpty ? ' • ${c.section}' : ''}', overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => ref.read(courseDraftProvider.notifier).selectOfficialCourseByKey(v),
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
@@ -105,14 +129,21 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
                   controller: codeController,
                   keyboardType: TextInputType.text,
                   validator: (v) => v == null || v.trim().isEmpty ? 'Course code is required.' : null,
-                  hintText: 'e.g., CSE410',
+                  hintText: 'e.g., 3550351',
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
                   label: 'Abbreviation',
                   controller: abbrController,
                   validator: (v) => v == null || v.trim().isEmpty ? 'Abbreviation is required.' : null,
-                  hintText: 'e.g., CN',
+                  hintText: 'e.g., CNG 351',
+                ),
+                const SizedBox(height: 12),
+                CustomTextField(
+                  label: 'Section',
+                  controller: sectionController,
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Section is required.' : null,
+                  hintText: 'e.g., S1 or Lab1',
                 ),
                 const SizedBox(height: 18),
                 Text(
@@ -187,6 +218,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
                               children: [
                                 Expanded(
                                   child: DropdownButtonFormField<int>(
+                                    isExpanded: true,
                                     initialValue: session.dayOfWeek,
                                     decoration: const InputDecoration(labelText: 'Day'),
                                     items: const [
@@ -369,6 +401,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
                     ref.read(courseDraftProvider.notifier).setCourseName(nameController.text.trim());
                     ref.read(courseDraftProvider.notifier).setCourseCode(codeController.text.trim());
                     ref.read(courseDraftProvider.notifier).setAbbreviation(abbrController.text.trim());
+                    ref.read(courseDraftProvider.notifier).setSection(sectionController.text.trim());
                     await ref.read(courseMutationProvider.notifier).createCourse();
                   },
                 ),

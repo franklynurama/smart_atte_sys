@@ -4,22 +4,154 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../courses/data/models/course_model.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
+import '../../data/models/attendance_session_model.dart';
+import '../../data/services/attendance_service.dart';
+import '../../data/services/file_service.dart';
 import '../providers/attendance_provider.dart';
 
 class UpdateAttendancePage extends ConsumerWidget {
   const UpdateAttendancePage({super.key});
 
-  List<MapEntry<String, String>> _recordKeyOptions(CourseModel course) {
-    final keys = course.attendanceRecords.keys.toList()..sort();
-    return keys.map((k) {
-      final split = k.split('_');
-      final label = split.length == 2 ? '${split[0]} ${split[1]}' : k;
-      return MapEntry(k, label);
-    }).toList();
+  List<_SessionOption> _sessionOptions({
+    required CourseModel? course,
+    required List<AttendanceSessionModel> normalSessions,
+    required List<AttendanceSessionModel> makeupSessions,
+  }) {
+    final options = <_SessionOption>[
+      ...normalSessions
+          .map(
+            (s) {
+              final date = _sessionDateFromNormalSessionId(s.sessionId);
+              final start = _sessionTimeFromNormalSessionId(s.sessionId);
+              final end = _normalEndTimeFromCourse(
+                course: course,
+                sessionDate: date,
+                sessionStart: start,
+              );
+              return _SessionOption(
+                value: 'normal|${s.sessionId}',
+                sessionId: s.sessionId,
+                isMakeup: false,
+                date: date,
+                startTime: start,
+                endTime: end,
+                label: 'Normal • $date $start-$end',
+              );
+            },
+          ),
+      ...makeupSessions
+          .map(
+            (s) => _SessionOption(
+              value: 'makeup|${s.sessionId}',
+              sessionId: s.sessionId,
+              isMakeup: true,
+              date: s.date,
+              startTime: s.startTimeHHmm,
+              endTime: s.endTimeHHmm,
+              label: 'Makeup • ${s.date} ${s.startTimeHHmm}-${s.endTimeHHmm}',
+            ),
+          ),
+    ];
+    return options;
+  }
+
+  String _sessionDateFromNormalSessionId(String sessionId) {
+    final parts = sessionId.split('_');
+    return parts.isNotEmpty ? parts.first : '';
+  }
+
+  String _sessionTimeFromNormalSessionId(String sessionId) {
+    final parts = sessionId.split('_');
+    return parts.length == 2 ? parts[1] : '';
+  }
+
+  String _normalEndTimeFromCourse({
+    required CourseModel? course,
+    required String sessionDate,
+    required String sessionStart,
+  }) {
+    if (course == null || sessionDate.isEmpty || sessionStart.isEmpty) return sessionStart;
+    final parts = sessionDate.split('-');
+    if (parts.length != 3) return sessionStart;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final d = int.tryParse(parts[2]);
+    if (y == null || m == null || d == null) return sessionStart;
+    final dt = DateTime(y, m, d);
+    final match = course.sessions.where(
+      (s) => s.dayOfWeek == dt.weekday && s.startTimeHHmm == sessionStart,
+    );
+    return match.isNotEmpty ? match.first.endTimeHHmm : sessionStart;
+  }
+
+  String _normalizeDate(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return '';
+    final dt = DateTime.tryParse(t);
+    if (dt != null) {
+      return '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    }
+    return t;
+  }
+
+  bool _isStudentInRoster(CourseModel course, String studentId) {
+    return course.students.any((s) => s.studentId == studentId);
+  }
+
+  bool _rowMatchesSession({
+    required FileService fileService,
+    required AttendanceCsvRow row,
+    required _SessionOption selected,
+  }) {
+    if (row.time.trim().isEmpty || selected.startTime.isEmpty || selected.endTime.isEmpty) {
+      return false;
+    }
+    final timeOk = fileService.isWithinSessionWindow(
+      csvTime: row.time.trim(),
+      sessionStartHHmm: selected.startTime,
+      sessionEndHHmm: selected.endTime,
+    );
+    if (!timeOk) return false;
+
+    if (row.date.trim().isEmpty || selected.date.trim().isEmpty) return false;
+    return _normalizeDate(row.date) == _normalizeDate(selected.date);
+  }
+
+  Future<void> _applyAttendanceToSession({
+    required AttendanceService attendanceService,
+    required _SessionOption selected,
+    required String courseId,
+    required List<String> validIds,
+    required List<AttendanceSessionModel> makeupSessions,
+  }) async {
+    if (!selected.isMakeup) {
+      await attendanceService.updateAttendanceRecord(
+        courseId: courseId,
+        recordKey: selected.sessionId,
+        attendedStudentIds: validIds,
+      );
+      return;
+    }
+
+    final target = makeupSessions.where((s) => s.sessionId == selected.sessionId).toList();
+    if (target.isEmpty) {
+      throw StateError('Selected makeup session not found.');
+    }
+    final map = Map<String, bool>.from(target.first.attendanceMap);
+    for (final id in validIds) {
+      map[id] = true;
+    }
+    await attendanceService.saveAttendanceMapBatch(
+      courseId: courseId,
+      isMakeup: true,
+      sessions: {selected.sessionId: map},
+    );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final fileService = FileService();
+    final attendanceService = AttendanceService();
     final selection = ref.watch(attendanceSelectionProvider);
     final coursesAsync = ref.watch(coursesProvider);
     final mutationAsync = ref.watch(attendanceMutationProvider);
@@ -56,9 +188,12 @@ class UpdateAttendancePage extends ConsumerWidget {
           final currentCourse = effectiveCourseId == null
               ? null
               : courses.where((c) => c.courseId == effectiveCourseId).firstOrNull;
-
-          final recordOptions = currentCourse == null ? <MapEntry<String, String>>[] : _recordKeyOptions(currentCourse);
-          final effectiveRecordKey = selection.recordKey ?? (recordOptions.isNotEmpty ? recordOptions.first.key : null);
+          final normalSessionsAsync = effectiveCourseId == null
+              ? const AsyncValue<List<AttendanceSessionModel>>.data(<AttendanceSessionModel>[])
+              : ref.watch(normalAttendanceSessionsProvider(effectiveCourseId));
+          final makeupSessionsAsync = effectiveCourseId == null
+              ? const AsyncValue<List<AttendanceSessionModel>>.data(<AttendanceSessionModel>[])
+              : ref.watch(makeupAttendanceSessionsProvider(effectiveCourseId));
 
           return SafeArea(
             child: Padding(
@@ -66,13 +201,14 @@ class UpdateAttendancePage extends ConsumerWidget {
               child: ListView(
                 children: [
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: currentCourse?.courseId,
                     decoration: const InputDecoration(labelText: 'Course'),
                     items: courses
                         .map(
                           (c) => DropdownMenuItem<String>(
                             value: c.courseId,
-                            child: Text('${c.courseCode} • ${c.abbreviation}'),
+                            child: Text('${c.courseCode} • ${c.abbreviation} • ${c.courseName}${c.section.isNotEmpty ? ' • ${c.section}' : ''}', overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -81,18 +217,35 @@ class UpdateAttendancePage extends ConsumerWidget {
                     },
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: effectiveRecordKey,
-                    decoration: const InputDecoration(labelText: 'Session (Record Key)'),
-                    items: recordOptions
-                        .map(
-                          (e) => DropdownMenuItem<String>(
-                            value: e.key,
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => ref.read(attendanceSelectionProvider.notifier).selectRecordKey(v),
+                  normalSessionsAsync.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (e, _) => Text('Failed to load normal sessions: $e'),
+                    data: (normalSessions) => makeupSessionsAsync.when(
+                      loading: () => const LinearProgressIndicator(),
+                      error: (e, _) => Text('Failed to load makeup sessions: $e'),
+                      data: (makeupSessions) {
+                        final options = _sessionOptions(
+                          course: currentCourse,
+                          normalSessions: normalSessions,
+                          makeupSessions: makeupSessions,
+                        );
+                        final selectedValue = selection.recordKey ?? (options.isNotEmpty ? options.first.value : null);
+                        return DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: selectedValue,
+                          decoration: const InputDecoration(labelText: 'Session (Normal/Makeup)'),
+                          items: options
+                              .map(
+                                (e) => DropdownMenuItem<String>(
+                                  value: e.value,
+                                  child: Text(e.label, overflow: TextOverflow.ellipsis),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) => ref.read(attendanceSelectionProvider.notifier).selectRecordKey(v),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 18),
                   if (mutationState.errorMessage != null || mutationState.successMessage != null)
@@ -105,7 +258,7 @@ class UpdateAttendancePage extends ConsumerWidget {
                             final messenger = ScaffoldMessenger.of(context);
                             final file = await FilePicker.platform.pickFiles(
                               type: FileType.custom,
-                              allowedExtensions: const ['csv', 'xlsx', 'xls'],
+                              allowedExtensions: const ['csv'],
                               withData: true,
                             );
                             if (file == null || file.files.isEmpty) return;
@@ -115,23 +268,90 @@ class UpdateAttendancePage extends ConsumerWidget {
                             if (bytes == null) return;
 
                             final courseId = effectiveCourseId;
-                            final recordKey = effectiveRecordKey;
-                            if (courseId == null || recordKey == null) {
+                            final encodedSession = selection.recordKey;
+                            if (courseId == null || encodedSession == null) {
                               messenger.showSnackBar(
                                 const SnackBar(content: Text('Select a course and session first.')),
                               );
                               return;
                             }
+                            final normalSessions = await ref.read(normalAttendanceSessionsProvider(courseId).future);
+                            final makeupSessions = await ref.read(makeupAttendanceSessionsProvider(courseId).future);
+                            final options = _sessionOptions(
+                              course: currentCourse,
+                              normalSessions: normalSessions,
+                              makeupSessions: makeupSessions,
+                            );
+                            final selected = options.where((o) => o.value == encodedSession).firstOrNull;
+                            if (selected == null) {
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('Selected session not found.')),
+                              );
+                              return;
+                            }
 
-                            await ref.read(attendanceMutationProvider.notifier).updateAttendanceFromCsv(
+                            final List<AttendanceCsvRow> detailedRows;
+                            try {
+                              detailedRows = await fileService.parseAttendanceRowsWithDateTime(
+                                bytes: bytes,
+                                fileName: fileName,
+                              );
+                            } catch (_) {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Enter a valid attendance CSV file. Required columns: student_id, student_name, timestamp.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            if (currentCourse == null) return;
+
+                            final validIds = <String>[];
+                            for (final row in detailedRows) {
+                              final inRoster = _isStudentInRoster(currentCourse, row.studentId);
+                              final matchesSession = _rowMatchesSession(
+                                fileService: fileService,
+                                row: row,
+                                selected: selected,
+                              );
+                              if (inRoster && matchesSession) {
+                                validIds.add(row.studentId);
+                              } else {
+                                await attendanceService.addUnverifiedRecord(
                                   courseId: courseId,
-                                  recordKey: recordKey,
-                                  bytes: bytes,
-                                  fileName: fileName,
+                                  studentName: row.studentName,
+                                  studentId: row.studentId,
+                                  date: row.date.isEmpty ? selected.date : row.date,
+                                  time: row.time.isEmpty ? selected.startTime : row.time,
+                                  rawSessionId: selected.sessionId,
+                                  isMakeup: selected.isMakeup,
                                 );
+                              }
+                            }
+                            await _applyAttendanceToSession(
+                              attendanceService: attendanceService,
+                              selected: selected,
+                              courseId: courseId,
+                              validIds: validIds,
+                              makeupSessions: makeupSessions,
+                            );
+                            ref.read(attendanceMutationProvider.notifier).clearFeedback();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Attendance updated: ${validIds.length} valid row(s). Non-matching rows moved to unverified.',
+                                ),
+                              ),
+                            );
 
                             // Refresh views.
                             ref.invalidate(coursesProvider);
+                            ref.invalidate(normalAttendanceSessionsProvider(courseId));
+                            ref.invalidate(makeupAttendanceSessionsProvider(courseId));
+                            ref.invalidate(unverifiedRecordsProvider(courseId));
+                            ref.read(attendanceGridEditProvider.notifier).clear();
                           },
                     icon: const Icon(Icons.upload_file_outlined),
                     label: const Text('Upload CSV and Update'),
@@ -144,5 +364,25 @@ class UpdateAttendancePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _SessionOption {
+  final String value;
+  final String sessionId;
+  final bool isMakeup;
+  final String date;
+  final String startTime;
+  final String endTime;
+  final String label;
+
+  const _SessionOption({
+    required this.value,
+    required this.sessionId,
+    required this.isMakeup,
+    required this.date,
+    required this.startTime,
+    required this.endTime,
+    required this.label,
+  });
 }
 

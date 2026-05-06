@@ -21,13 +21,20 @@ class DeleteCourseDialog extends ConsumerWidget {
 
     return AlertDialog(
       title: const Text('Delete course?'),
-      content: Text('This will remove "$courseName" and its attendance records.'),
+      content: Text(
+        'This will permanently delete "$courseName" and all of its attendance records.\n\n'
+        'This action cannot be undone.',
+      ),
       actions: [
         TextButton(
           onPressed: isLoading ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
           onPressed: isLoading
               ? null
               : () async {
