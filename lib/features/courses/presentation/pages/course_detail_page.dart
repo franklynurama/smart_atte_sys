@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/date_utils.dart' as app_date;
 import '../../../../routes/app_routes.dart';
+import '../../../attendance/data/models/attendance_session_model.dart';
 import '../../data/models/course_model.dart';
 import '../providers/course_provider.dart';
 import 'delete_course_dialog.dart';
@@ -31,6 +32,7 @@ class CourseDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final courseAsync = ref.watch(courseDetailProvider(courseId));
+    final normalSessionsAsync = ref.watch(normalAttendanceSessionsProvider(courseId));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Course Detail'),
@@ -44,6 +46,10 @@ class CourseDetailPage extends ConsumerWidget {
           }
 
           final recordKeys = _nextRecordKeysForCourse(course, DateTime.now());
+          final normalSessions = normalSessionsAsync.valueOrNull ?? const <AttendanceSessionModel>[];
+          final normalAttendance = <String, Map<String, bool>>{
+            for (final s in normalSessions) s.sessionId: s.attendanceMap,
+          };
 
           return SafeArea(
             child: Padding(
@@ -139,7 +145,7 @@ class CourseDetailPage extends ConsumerWidget {
                           final rowCells = <DataCell>[];
                           for (int i = 0; i < course.sessions.length; i++) {
                             final key = recordKeys[i];
-                            final record = course.attendanceRecords[key];
+                            final record = normalAttendance[key];
                             final attended = record?[s.studentId] ?? false;
                             rowCells.add(
                               DataCell(

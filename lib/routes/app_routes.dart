@@ -8,6 +8,8 @@ import '../features/courses/presentation/pages/view_courses_page.dart';
 import '../features/courses/presentation/pages/course_detail_page.dart';
 import '../features/attendance/presentation/pages/update_attendance_page.dart';
 import '../features/attendance/presentation/pages/decrypt_attendance_page.dart';
+import '../features/attendance/presentation/pages/makeup_attendance_page.dart';
+import '../features/courses/presentation/pages/add_student_page.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -18,6 +20,8 @@ class AppRoutes {
   static const String courseDetail = '/courses/detail';
   static const String updateAttendance = '/attendance/update';
   static const String decryptAttendance = '/attendance/decrypt';
+  static const String makeupAttendance = '/attendance/makeup';
+  static const String addStudent = '/courses/add-student';
 
   static RouteFactory router = (settings) {
     switch (settings.name) {
@@ -48,6 +52,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const UpdateAttendancePage());
       case decryptAttendance:
         return MaterialPageRoute(builder: (_) => const DecryptAttendancePage());
+      case makeupAttendance:
+        return MaterialPageRoute(builder: (_) => const MakeupAttendancePage());
+      case addStudent:
+        return MaterialPageRoute(builder: (_) => const AddStudentPage());
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(

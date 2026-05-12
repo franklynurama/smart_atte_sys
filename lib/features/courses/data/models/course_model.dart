@@ -34,6 +34,7 @@ class CourseModel {
   final String courseName;
   final String courseCode;
   final String abbreviation;
+  final String section;
   final List<CourseSessionModel> sessions;
   final List<StudentModel> students;
   final DateTime createdAt;
@@ -46,6 +47,7 @@ class CourseModel {
     required this.courseName,
     required this.courseCode,
     required this.abbreviation,
+    required this.section,
     required this.sessions,
     required this.students,
     required this.createdAt,
@@ -59,6 +61,7 @@ class CourseModel {
       'courseName': courseName,
       'courseCode': courseCode,
       'abbreviation': abbreviation,
+      'section': section,
       'sessions': sessions.map((s) => s.toMap()).toList(),
       'students': students.map((s) => s.toMap()).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
@@ -102,6 +105,7 @@ class CourseModel {
       courseName: (data['courseName'] ?? '') as String,
       courseCode: (data['courseCode'] ?? '') as String,
       abbreviation: (data['abbreviation'] ?? '') as String,
+      section: (data['section'] ?? '') as String,
       sessions: sessions,
       students: students,
       createdAt: createdAt,
