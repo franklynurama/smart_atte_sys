@@ -160,7 +160,6 @@ class DecryptAttendancePage extends ConsumerWidget {
     required _SessionOption selected,
     required String courseId,
     required List<String> validIds,
-    required List<AttendanceSessionModel> makeupSessions,
   }) async {
     if (!selected.isMakeup) {
       await attendanceService.updateAttendanceRecord(
@@ -170,18 +169,10 @@ class DecryptAttendancePage extends ConsumerWidget {
       );
       return;
     }
-    final target = makeupSessions.where((s) => s.sessionId == selected.sessionId).firstOrNull;
-    if (target == null) {
-      throw StateError('Selected makeup session not found.');
-    }
-    final map = Map<String, bool>.from(target.attendanceMap);
-    for (final id in validIds) {
-      map[id] = true;
-    }
-    await attendanceService.saveAttendanceMapBatch(
+    await attendanceService.updateMakeupAttendanceRecord(
       courseId: courseId,
-      isMakeup: true,
-      sessions: {selected.sessionId: map},
+      sessionId: selected.sessionId,
+      attendedStudentIds: validIds,
     );
   }
 
@@ -469,7 +460,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                     selected: selected,
                                     courseId: courseId,
                                     validIds: validIds,
-                                    makeupSessions: makeupSessions,
                                   );
                                   ref.invalidate(coursesProvider);
                                   ref.invalidate(normalAttendanceSessionsProvider(courseId));
@@ -613,7 +603,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                     selected: selected,
                                     courseId: courseId,
                                     validIds: validIds,
-                                    makeupSessions: makeupSessions,
                                   );
 
                                   await ref.read(attendanceMutationProvider.notifier).processDecrypted(

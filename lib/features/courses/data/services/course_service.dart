@@ -272,7 +272,8 @@ class CourseService {
           ref,
           <String, dynamic>{
             'sessionId': e.key,
-            'attendanceMap': e.value,
+            AppConstants.attendanceMapRawField: e.value,
+            AppConstants.attendanceMapManualField: <String, bool>{},
             'updatedAt': FieldValue.serverTimestamp(),
             'isMigrated': true,
           },
@@ -302,7 +303,10 @@ class CourseService {
         .get();
     final subAttendance = <String, Map<String, bool>>{};
     for (final d in normalSnap.docs) {
-      final raw = (d.data()['attendanceMap'] as Map<String, dynamic>? ?? <String, dynamic>{});
+      final data = d.data();
+      final rawField = data[AppConstants.attendanceMapRawField] as Map<String, dynamic>?;
+      final legacy = data[AppConstants.attendanceMapField] as Map<String, dynamic>?;
+      final raw = rawField ?? legacy ?? <String, dynamic>{};
       subAttendance[d.id] = raw.map((k, v) => MapEntry(k, (v as bool?) ?? false));
     }
 

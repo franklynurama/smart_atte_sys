@@ -390,25 +390,6 @@ class AttendanceGridEditState {
 class AttendanceGridEditNotifier extends StateNotifier<AttendanceGridEditState> {
   AttendanceGridEditNotifier() : super(AttendanceGridEditState.initial());
 
-  void seedIfMissing({
-    required bool isMakeup,
-    required Map<String, Map<String, bool>> source,
-  }) {
-    final target = isMakeup ? state.makeupDraft : state.normalDraft;
-    if (target.isNotEmpty) return;
-    if (isMakeup) {
-      state = AttendanceGridEditState(
-        normalDraft: state.normalDraft,
-        makeupDraft: source,
-      );
-    } else {
-      state = AttendanceGridEditState(
-        normalDraft: source,
-        makeupDraft: state.makeupDraft,
-      );
-    }
-  }
-
   void toggle({
     required bool isMakeup,
     required String sessionId,

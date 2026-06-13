@@ -122,7 +122,6 @@ class UpdateAttendancePage extends ConsumerWidget {
     required _SessionOption selected,
     required String courseId,
     required List<String> validIds,
-    required List<AttendanceSessionModel> makeupSessions,
   }) async {
     if (!selected.isMakeup) {
       await attendanceService.updateAttendanceRecord(
@@ -133,18 +132,10 @@ class UpdateAttendancePage extends ConsumerWidget {
       return;
     }
 
-    final target = makeupSessions.where((s) => s.sessionId == selected.sessionId).toList();
-    if (target.isEmpty) {
-      throw StateError('Selected makeup session not found.');
-    }
-    final map = Map<String, bool>.from(target.first.attendanceMap);
-    for (final id in validIds) {
-      map[id] = true;
-    }
-    await attendanceService.saveAttendanceMapBatch(
+    await attendanceService.updateMakeupAttendanceRecord(
       courseId: courseId,
-      isMakeup: true,
-      sessions: {selected.sessionId: map},
+      sessionId: selected.sessionId,
+      attendedStudentIds: validIds,
     );
   }
 
@@ -335,7 +326,6 @@ class UpdateAttendancePage extends ConsumerWidget {
                               selected: selected,
                               courseId: courseId,
                               validIds: validIds,
-                              makeupSessions: makeupSessions,
                             );
                             ref.read(attendanceMutationProvider.notifier).clearFeedback();
                             messenger.showSnackBar(

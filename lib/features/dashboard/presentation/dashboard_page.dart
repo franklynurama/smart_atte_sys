@@ -81,10 +81,16 @@ class DashboardPage extends ConsumerWidget {
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.addCourse),
                   ),
                   DashboardCard(
-                    icon: Icons.view_list_outlined,
-                    title: 'View/Delete Courses',
-                    description: 'Attendance overview by session.',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.viewCourses),
+                    icon: Icons.visibility_outlined,
+                    title: 'View Attendance',
+                    description: 'Select a course and review attendance.',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.viewAttendance),
+                  ),
+                  DashboardCard(
+                    icon: Icons.delete_outline,
+                    title: 'Delete Course',
+                    description: 'Permanently remove a course and its data.',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.deleteCourse),
                   ),
                   DashboardCard(
                     icon: Icons.edit_note_outlined,
