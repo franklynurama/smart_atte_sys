@@ -36,7 +36,10 @@ class _AddStudentPageState extends ConsumerState<AddStudentPage> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load courses: $e')),
         data: (courses) {
-          final effectiveCourse = _selectedCourseId ?? (courses.isNotEmpty ? courses.first.courseId : null);
+          final courseIds = courses.map((c) => c.courseId).toSet();
+          final effectiveCourse = courseIds.contains(_selectedCourseId)
+              ? _selectedCourseId
+              : (courses.isNotEmpty ? courses.first.courseId : null);
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -45,7 +48,8 @@ class _AddStudentPageState extends ConsumerState<AddStudentPage> {
                 child: ListView(
                   children: [
                     DropdownButtonFormField<String>(
-                    isExpanded: true,
+                      isExpanded: true,
+                      key: ValueKey(effectiveCourse),
                       initialValue: effectiveCourse,
                       decoration: const InputDecoration(labelText: 'Course'),
                       items: courses

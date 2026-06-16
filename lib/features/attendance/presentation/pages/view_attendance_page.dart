@@ -38,7 +38,8 @@ class ViewAttendancePage extends ConsumerWidget {
           if (courses.isEmpty) {
             return const Center(child: Text('No courses yet. Add a course first.'));
           }
-          final activeId = selectedId ?? courses.first.courseId;
+          final courseIds = courses.map((c) => c.courseId).toSet();
+          final activeId = courseIds.contains(selectedId) ? selectedId : courses.first.courseId;
           final activeCourse = courses.firstWhere((c) => c.courseId == activeId, orElse: () => courses.first);
 
           return Padding(
@@ -48,6 +49,7 @@ class ViewAttendancePage extends ConsumerWidget {
               children: [
                 DropdownButtonFormField<String>(
                   isExpanded: true,
+                  key: ValueKey(activeCourse.courseId),
                   initialValue: activeCourse.courseId,
                   decoration: const InputDecoration(labelText: 'Select course'),
                   items: courses
