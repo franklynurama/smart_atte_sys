@@ -30,7 +30,8 @@ class _MakeupAttendancePageState extends ConsumerState<MakeupAttendancePage> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load courses: $e')),
         data: (courses) {
-          final selected = _courseId ?? (courses.isNotEmpty ? courses.first.courseId : null);
+          final courseIds = courses.map((c) => c.courseId).toSet();
+          final selected = courseIds.contains(_courseId) ? _courseId : (courses.isNotEmpty ? courses.first.courseId : null);
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -38,6 +39,7 @@ class _MakeupAttendancePageState extends ConsumerState<MakeupAttendancePage> {
                 children: [
                   DropdownButtonFormField<String>(
                     isExpanded: true,
+                    key: ValueKey(selected),
                     initialValue: selected,
                     decoration: const InputDecoration(labelText: 'Select Course'),
                     items: courses

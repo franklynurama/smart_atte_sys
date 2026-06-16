@@ -19,7 +19,7 @@ class DecryptAttendancePage extends ConsumerWidget {
     required List<AttendanceSessionModel> normalSessions,
     required List<AttendanceSessionModel> makeupSessions,
   }) {
-    return <_SessionOption>[
+    final options = <_SessionOption>[
       ...normalSessions.map(
         (s) {
           final date = _sessionDateFromNormalSessionId(s.sessionId);
@@ -52,6 +52,11 @@ class DecryptAttendancePage extends ConsumerWidget {
         ),
       ),
     ];
+    final deduped = <String, _SessionOption>{};
+    for (final option in options) {
+      deduped[option.value] = option;
+    }
+    return deduped.values.toList();
   }
 
   String _sessionDateFromNormalSessionId(String sessionId) {
@@ -160,7 +165,6 @@ class DecryptAttendancePage extends ConsumerWidget {
     required _SessionOption selected,
     required String courseId,
     required List<String> validIds,
-    required List<AttendanceSessionModel> makeupSessions,
   }) async {
     if (!selected.isMakeup) {
       await attendanceService.updateAttendanceRecord(
@@ -170,18 +174,10 @@ class DecryptAttendancePage extends ConsumerWidget {
       );
       return;
     }
-    final target = makeupSessions.where((s) => s.sessionId == selected.sessionId).firstOrNull;
-    if (target == null) {
-      throw StateError('Selected makeup session not found.');
-    }
-    final map = Map<String, bool>.from(target.attendanceMap);
-    for (final id in validIds) {
-      map[id] = true;
-    }
-    await attendanceService.saveAttendanceMapBatch(
+    await attendanceService.updateMakeupAttendanceRecord(
       courseId: courseId,
-      isMakeup: true,
-      sessions: {selected.sessionId: map},
+      sessionId: selected.sessionId,
+      attendedStudentIds: validIds,
     );
   }
 
@@ -241,7 +237,10 @@ class DecryptAttendancePage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load courses: $e')),
         data: (courses) {
-          final effectiveCourseId = selection.courseId ?? (courses.isNotEmpty ? courses.first.courseId : null);
+          final courseIds = courses.map((c) => c.courseId).toSet();
+          final effectiveCourseId = courseIds.contains(selection.courseId)
+              ? selection.courseId
+              : (courses.isNotEmpty ? courses.first.courseId : null);
           final currentCourse = effectiveCourseId == null
               ? null
               : courses.where((c) => c.courseId == effectiveCourseId).firstOrNull;
@@ -259,7 +258,8 @@ class DecryptAttendancePage extends ConsumerWidget {
                 children: [
                   DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: currentCourse?.courseId,
+                    key: ValueKey(effectiveCourseId),
+                    initialValue: effectiveCourseId,
                     decoration: const InputDecoration(labelText: 'Course'),
                     items: courses
                         .map(
@@ -284,9 +284,13 @@ class DecryptAttendancePage extends ConsumerWidget {
                           normalSessions: normalSessions,
                           makeupSessions: makeupSessions,
                         );
-                        final selectedValue = selection.recordKey ?? (options.isNotEmpty ? options.first.value : null);
+                        final optionValues = options.map((o) => o.value).toSet();
+                        final selectedValue = optionValues.contains(selection.recordKey)
+                            ? selection.recordKey
+                            : (options.isNotEmpty ? options.first.value : null);
                         return DropdownButtonFormField<String>(
                           isExpanded: true,
+                          key: ValueKey(selectedValue),
                           initialValue: selectedValue,
                           decoration: const InputDecoration(labelText: 'Session (Normal/Makeup)'),
                           items: options
@@ -469,7 +473,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                     selected: selected,
                                     courseId: courseId,
                                     validIds: validIds,
-                                    makeupSessions: makeupSessions,
                                   );
                                   ref.invalidate(coursesProvider);
                                   ref.invalidate(normalAttendanceSessionsProvider(courseId));
@@ -613,7 +616,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                     selected: selected,
                                     courseId: courseId,
                                     validIds: validIds,
-                                    makeupSessions: makeupSessions,
                                   );
 
                                   await ref.read(attendanceMutationProvider.notifier).processDecrypted(

@@ -4,11 +4,15 @@ import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/signup_page.dart';
 import '../features/dashboard/presentation/dashboard_page.dart';
 import '../features/courses/presentation/pages/add_course_page.dart';
-import '../features/courses/presentation/pages/view_courses_page.dart';
 import '../features/courses/presentation/pages/course_detail_page.dart';
+import '../features/courses/presentation/pages/delete_course_page.dart';
 import '../features/attendance/presentation/pages/update_attendance_page.dart';
 import '../features/attendance/presentation/pages/decrypt_attendance_page.dart';
 import '../features/attendance/presentation/pages/makeup_attendance_page.dart';
+import '../features/attendance/presentation/pages/view_attendance_page.dart';
+import '../features/attendance/presentation/pages/attendance_mode_page.dart';
+import '../features/attendance/presentation/pages/attendance_grid_page.dart';
+import '../features/attendance/presentation/models/attendance_view_mode.dart';
 import '../features/courses/presentation/pages/add_student_page.dart';
 
 class AppRoutes {
@@ -17,11 +21,22 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String addCourse = '/courses/add';
   static const String viewCourses = '/courses/view';
+  static const String viewAttendance = '/attendance/view';
+  static const String attendanceMode = '/attendance/mode';
+  static const String attendanceGrid = '/attendance/grid';
+  static const String deleteCourse = '/courses/delete';
   static const String courseDetail = '/courses/detail';
   static const String updateAttendance = '/attendance/update';
   static const String decryptAttendance = '/attendance/decrypt';
   static const String makeupAttendance = '/attendance/makeup';
   static const String addStudent = '/courses/add-student';
+
+  static AttendanceViewMode _parseMode(String? raw) {
+    return AttendanceViewMode.values.firstWhere(
+      (m) => m.name == raw,
+      orElse: () => AttendanceViewMode.imported,
+    );
+  }
 
   static RouteFactory router = (settings) {
     switch (settings.name) {
@@ -34,7 +49,31 @@ class AppRoutes {
       case addCourse:
         return MaterialPageRoute(builder: (_) => const AddCoursePage());
       case viewCourses:
-        return MaterialPageRoute(builder: (_) => const ViewCoursesPage());
+      case viewAttendance:
+        return MaterialPageRoute(builder: (_) => const ViewAttendancePage());
+      case attendanceMode:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        final courseId = args['courseId'] as String?;
+        if (courseId == null) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Center(child: Text('Missing courseId argument'))),
+          );
+        }
+        return MaterialPageRoute(builder: (_) => AttendanceModePage(courseId: courseId));
+      case attendanceGrid:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        final courseId = args['courseId'] as String?;
+        final mode = _parseMode(args['mode'] as String?);
+        if (courseId == null) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Center(child: Text('Missing courseId argument'))),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => AttendanceGridPage(courseId: courseId, mode: mode),
+        );
+      case deleteCourse:
+        return MaterialPageRoute(builder: (_) => const DeleteCoursePage());
       case courseDetail:
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         final courseId = args['courseId'] as String?;
@@ -65,4 +104,3 @@ class AppRoutes {
     }
   };
 }
-
