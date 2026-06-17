@@ -6,6 +6,8 @@ import '../../../../core/utils/date_utils.dart' as app_date;
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../routes/app_routes.dart';
+import '../../domain/academic_year.dart';
+import '../../domain/course_term.dart';
 import '../providers/course_provider.dart';
 
 /// Add course: uses [Form] + [GlobalKey] so [TextFormField] validators run.
@@ -50,6 +52,7 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(courseDraftProvider);
+    final yearOptions = academicYearOptions();
     final mutation = ref.watch(courseMutationProvider);
     final mutationState = mutation.valueOrNull ?? CourseMutationState.initial();
     if (nameController.text != draft.courseName) nameController.text = draft.courseName;
@@ -144,6 +147,43 @@ class _AddCoursePageState extends ConsumerState<AddCoursePage> {
                   controller: sectionController,
                   validator: (v) => v == null || v.trim().isEmpty ? 'Section is required.' : null,
                   hintText: 'e.g., S1 or Lab1',
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<CourseTerm>(
+                  isExpanded: true,
+                  initialValue: draft.term,
+                  decoration: const InputDecoration(labelText: 'Term'),
+                  items: const [
+                    DropdownMenuItem(value: CourseTerm.fall, child: Text('Fall')),
+                    DropdownMenuItem(value: CourseTerm.spring, child: Text('Spring')),
+                    DropdownMenuItem(value: CourseTerm.summer, child: Text('Summer')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    ref.read(courseDraftProvider.notifier).setTerm(v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: yearOptions.contains(draft.academicYearLabel)
+                      ? draft.academicYearLabel
+                      : yearOptions.last,
+                  decoration: const InputDecoration(labelText: 'Academic year'),
+                  items: yearOptions
+                      .map((y) => DropdownMenuItem<String>(value: y, child: Text(y)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    ref.read(courseDraftProvider.notifier).setAcademicYearLabel(v);
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Same course code in a different term or academic year is a separate course.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
                 const SizedBox(height: 18),
                 Text(

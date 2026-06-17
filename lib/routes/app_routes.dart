@@ -5,7 +5,8 @@ import '../features/auth/presentation/pages/signup_page.dart';
 import '../features/dashboard/presentation/dashboard_page.dart';
 import '../features/courses/presentation/pages/add_course_page.dart';
 import '../features/courses/presentation/pages/course_detail_page.dart';
-import '../features/courses/presentation/pages/delete_course_page.dart';
+import '../features/courses/presentation/pages/manage_courses_page.dart';
+import '../features/courses/presentation/pages/archived_courses_page.dart';
 import '../features/attendance/presentation/pages/update_attendance_page.dart';
 import '../features/attendance/presentation/pages/decrypt_attendance_page.dart';
 import '../features/attendance/presentation/pages/makeup_attendance_page.dart';
@@ -25,6 +26,7 @@ class AppRoutes {
   static const String attendanceMode = '/attendance/mode';
   static const String attendanceGrid = '/attendance/grid';
   static const String deleteCourse = '/courses/delete';
+  static const String archivedCourses = '/courses/archived';
   static const String courseDetail = '/courses/detail';
   static const String updateAttendance = '/attendance/update';
   static const String decryptAttendance = '/attendance/decrypt';
@@ -73,7 +75,9 @@ class AppRoutes {
           builder: (_) => AttendanceGridPage(courseId: courseId, mode: mode),
         );
       case deleteCourse:
-        return MaterialPageRoute(builder: (_) => const DeleteCoursePage());
+        return MaterialPageRoute(builder: (_) => const ManageCoursesPage());
+      case archivedCourses:
+        return MaterialPageRoute(builder: (_) => const ArchivedCoursesPage());
       case courseDetail:
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         final courseId = args['courseId'] as String?;

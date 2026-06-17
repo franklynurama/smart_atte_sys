@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../attendance/data/services/attendance_service.dart';
+import '../../domain/course_display.dart';
 import '../../data/models/student_model.dart';
 import '../providers/course_provider.dart';
 
@@ -29,7 +30,7 @@ class _AddStudentPageState extends ConsumerState<AddStudentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final coursesAsync = ref.watch(coursesProvider);
+    final coursesAsync = ref.watch(activeCoursesProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Add Student')),
       body: coursesAsync.when(
@@ -56,7 +57,7 @@ class _AddStudentPageState extends ConsumerState<AddStudentPage> {
                           .map(
                             (c) => DropdownMenuItem(
                               value: c.courseId,
-                              child: Text('${c.courseName} (${c.courseCode} • ${c.section})', overflow: TextOverflow.ellipsis),
+                              child: Text(courseDropdownLabel(c), overflow: TextOverflow.ellipsis),
                             ),
                           )
                           .toList(),

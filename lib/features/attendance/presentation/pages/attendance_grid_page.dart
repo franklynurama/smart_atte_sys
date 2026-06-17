@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/download_bytes.dart';
 import '../../../courses/data/models/course_model.dart';
+import '../../../courses/domain/course_display.dart';
+import '../../../courses/domain/course_term.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 import '../../data/models/attendance_session_model.dart';
 import '../../data/services/attendance_export_service.dart';
@@ -111,8 +113,9 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
         sessions: makeupSessions,
         isMakeup: true,
       );
-      await downloadBytesToDevice(normalBytes, '${course.courseCode}_normal_final.csv');
-      await downloadBytesToDevice(makeupBytes, '${course.courseCode}_makeup_final.csv');
+      final prefix = courseExportPrefix(course);
+      await downloadBytesToDevice(normalBytes, '${prefix}_normal_final.csv');
+      await downloadBytesToDevice(makeupBytes, '${prefix}_makeup_final.csv');
       if (!context.mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('Semester tables downloaded (2 CSV files).')));
     } catch (e) {
@@ -139,7 +142,8 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
         makeupSlots: makeupBundle.slots,
         makeupSessions: makeupSessions,
       );
-      await downloadBytesToDevice(bytes, '${course.courseCode}_final_attendance.xlsx');
+      final prefix = courseExportPrefix(course);
+      await downloadBytesToDevice(bytes, '${prefix}_final_attendance.xlsx');
       if (!context.mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('Semester tables downloaded (Excel, 2 sheets).')));
     } catch (e) {
@@ -169,7 +173,8 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
               makeupSessions: makeupSessions,
             );
       final ext = excel ? 'xlsx' : 'csv';
-      await downloadBytesToDevice(bytes, '${course.courseCode}_attendance_percentage.$ext');
+      final prefix = courseExportPrefix(course);
+      await downloadBytesToDevice(bytes, '${prefix}_attendance_percentage.$ext');
       if (!context.mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('Attendance percentage downloaded ($ext).')));
     } catch (e) {
@@ -268,12 +273,21 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
           if (course == null) {
             return const Center(child: Text('Course not found.'));
           }
+          final isArchived = course.status == CourseStatus.archived;
+          final effectiveMode = isArchived ? AttendanceViewMode.finalAttendance : widget.mode;
 
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                if (widget.mode == AttendanceViewMode.finalAttendance) ...[
+                if (isArchived && widget.mode != AttendanceViewMode.finalAttendance)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'This course is archived. Showing Final Attendance in read-only mode.',
+                    ),
+                  ),
+                if (effectiveMode == AttendanceViewMode.finalAttendance) ...[
                   _exportBar(course),
                   if (_isExporting)
                     const Padding(
@@ -285,7 +299,7 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
                 _tableSwitcher(),
                 const SizedBox(height: 12),
                 Expanded(
-                  flex: widget.mode == AttendanceViewMode.adjustments ? 7 : 10,
+                  flex: effectiveMode == AttendanceViewMode.adjustments ? 7 : 10,
                   child: sessionsAsync.when(
                     loading: () => const Center(child: CircularProgressIndicator()),
                     error: (e, _) => Center(child: Text('Failed to load sessions: $e')),
@@ -293,15 +307,15 @@ class _AttendanceGridPageState extends ConsumerState<AttendanceGridPage> {
                       course: course,
                       sessions: sessions,
                       isMakeup: isMakeup,
-                      mode: widget.mode,
+                      mode: effectiveMode,
                       isSaving: _isSavingChanges,
-                      onSave: widget.mode == AttendanceViewMode.adjustments
+                      onSave: effectiveMode == AttendanceViewMode.adjustments && !isArchived
                           ? () => _saveChanges(course, sessions)
                           : null,
                     ),
                   ),
                 ),
-                if (widget.mode == AttendanceViewMode.adjustments) ...[
+                if (effectiveMode == AttendanceViewMode.adjustments && !isArchived) ...[
                   const SizedBox(height: 12),
                   Expanded(
                     flex: 3,

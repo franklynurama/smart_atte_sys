@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../domain/course_term.dart';
 import 'student_model.dart';
 
 class CourseSessionModel {
@@ -41,6 +42,11 @@ class CourseModel {
   final DateTime semesterStartDate;
   final DateTime semesterEndDate;
   final Map<String, Map<String, bool>> attendanceRecords;
+  final CourseTerm term;
+  final String academicYearLabel;
+  final int academicYearStart;
+  final CourseStatus status;
+  final DateTime? archivedAt;
 
   const CourseModel({
     required this.courseId,
@@ -54,6 +60,11 @@ class CourseModel {
     required this.semesterStartDate,
     required this.semesterEndDate,
     required this.attendanceRecords,
+    required this.term,
+    required this.academicYearLabel,
+    required this.academicYearStart,
+    required this.status,
+    required this.archivedAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -68,6 +79,11 @@ class CourseModel {
       'semesterStartDate': Timestamp.fromDate(semesterStartDate),
       'semesterEndDate': Timestamp.fromDate(semesterEndDate),
       'attendanceRecords': attendanceRecords,
+      'term': term.toFirestore(),
+      'academicYearLabel': academicYearLabel,
+      'academicYearStart': academicYearStart,
+      'status': status.toFirestore(),
+      'archivedAt': archivedAt == null ? null : Timestamp.fromDate(archivedAt!),
     };
   }
 
@@ -83,6 +99,8 @@ class CourseModel {
         semesterStartTs is Timestamp ? semesterStartTs.toDate() : DateTime.now();
     final semesterEndDate =
         semesterEndTs is Timestamp ? semesterEndTs.toDate() : DateTime.now();
+    final archivedAtTs = data['archivedAt'];
+    final archivedAt = archivedAtTs is Timestamp ? archivedAtTs.toDate() : null;
 
     final sessionsRaw = (data['sessions'] ?? []) as List<dynamic>;
     final sessions = sessionsRaw
@@ -112,6 +130,11 @@ class CourseModel {
       semesterStartDate: semesterStartDate,
       semesterEndDate: semesterEndDate,
       attendanceRecords: attendanceRecords,
+      term: courseTermFromFirestore(data['term'] as String?),
+      academicYearLabel: (data['academicYearLabel'] ?? 'LEGACY') as String,
+      academicYearStart: (data['academicYearStart'] ?? 0) as int,
+      status: courseStatusFromFirestore(data['status'] as String?),
+      archivedAt: archivedAt,
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/constants/constants.dart';
 import '../../../../core/utils/date_utils.dart' as app_date;
+import '../../domain/course_term.dart';
 import '../models/course_model.dart';
 import '../models/student_model.dart';
 
@@ -70,17 +71,24 @@ class CourseService {
     required String courseCode,
     required String abbreviation,
     required String section,
+    required CourseTerm term,
+    required String academicYearLabel,
+    required int academicYearStart,
     required DateTime semesterStartDate,
     required DateTime semesterEndDate,
     required List<CourseSessionModel> sessions,
     required List<StudentModel> students,
   }) async {
-    final duplicate = await _isDuplicateCourseCodeAndSection(
+    final duplicate = await _isDuplicateOffering(
       courseCode: courseCode,
       section: section,
+      term: term,
+      academicYearLabel: academicYearLabel,
     );
     if (duplicate) {
-      throw StateError('A course with the same code and section already exists.');
+      throw StateError(
+        'An active course with this code, section, term, and academic year already exists.',
+      );
     }
 
     final courseRef = _firestore
@@ -139,6 +147,11 @@ class CourseService {
       'createdAt': Timestamp.fromDate(createdAt),
       'semesterStartDate': Timestamp.fromDate(start),
       'semesterEndDate': Timestamp.fromDate(end),
+      AppConstants.termField: term.toFirestore(),
+      AppConstants.academicYearLabelField: academicYearLabel,
+      AppConstants.academicYearStartField: academicYearStart,
+      AppConstants.statusField: CourseStatus.active.toFirestore(),
+      AppConstants.archivedAtField: null,
     });
 
     await _seedStudentsSubcollection(
@@ -153,18 +166,84 @@ class CourseService {
     return courseRef.id;
   }
 
-  Future<void> deleteCourse(String courseId) {
-    return _firestore
+  Future<void> deleteCourse(String courseId) async {
+    final courseRef = _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(_uid)
+        .collection(AppConstants.coursesCollection)
+        .doc(courseId);
+
+    final doc = await courseRef.get();
+    if (!doc.exists) {
+      throw StateError('Course not found.');
+    }
+
+    await _deleteAllDocumentsInCollection(courseRef.collection(AppConstants.studentsField));
+    await _deleteAllDocumentsInCollection(courseRef.collection(AppConstants.normalAttendanceCollection));
+    await _deleteAllDocumentsInCollection(courseRef.collection(AppConstants.makeupAttendanceCollection));
+    await _deleteAllDocumentsInCollection(courseRef.collection(AppConstants.unverifiedRecordsCollection));
+    await courseRef.delete();
+
+    developer.log('Deleted course $courseId and all subcollections', name: 'CourseService');
+  }
+
+  /// Firestore does not cascade-delete subcollections; delete in batches (max 500 ops/batch).
+  Future<void> _deleteAllDocumentsInCollection(
+    CollectionReference<Map<String, dynamic>> collectionRef,
+  ) async {
+    const batchSize = 400;
+    while (true) {
+      final snap = await collectionRef.limit(batchSize).get();
+      if (snap.docs.isEmpty) return;
+      final batch = _firestore.batch();
+      for (final d in snap.docs) {
+        batch.delete(d.reference);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> archiveCourse(String courseId) async {
+    final ref = _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(_uid)
+        .collection(AppConstants.coursesCollection)
+        .doc(courseId);
+    final doc = await ref.get();
+    if (!doc.exists) {
+      throw StateError('Course not found.');
+    }
+    final status = courseStatusFromFirestore((doc.data()?[AppConstants.statusField]) as String?);
+    if (status == CourseStatus.archived) {
+      throw StateError('Course is already archived.');
+    }
+    await ref.update({
+      AppConstants.statusField: CourseStatus.archived.toFirestore(),
+      AppConstants.archivedAtField: FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> assertCourseNotArchived(String courseId) async {
+    final doc = await _firestore
         .collection(AppConstants.usersCollection)
         .doc(_uid)
         .collection(AppConstants.coursesCollection)
         .doc(courseId)
-        .delete();
+        .get();
+    if (!doc.exists) {
+      throw StateError('Course not found.');
+    }
+    final status = courseStatusFromFirestore((doc.data()?[AppConstants.statusField]) as String?);
+    if (status == CourseStatus.archived) {
+      throw StateError('Course is archived and cannot be modified.');
+    }
   }
 
-  Future<bool> _isDuplicateCourseCodeAndSection({
+  Future<bool> _isDuplicateOffering({
     required String courseCode,
     required String section,
+    required CourseTerm term,
+    required String academicYearLabel,
   }) async {
     final snap = await _firestore
         .collection(AppConstants.usersCollection)
@@ -172,56 +251,12 @@ class CourseService {
         .collection(AppConstants.coursesCollection)
         .where('courseCode', isEqualTo: courseCode.trim())
         .where('section', isEqualTo: section.trim())
+        .where(AppConstants.termField, isEqualTo: term.toFirestore())
+        .where(AppConstants.academicYearLabelField, isEqualTo: academicYearLabel.trim())
+        .where(AppConstants.statusField, isEqualTo: CourseStatus.active.toFirestore())
         .limit(1)
         .get();
     return snap.docs.isNotEmpty;
-  }
-
-  Future<void> migrateLegacyCoursesToSubcollections() async {
-    final coursesSnap = await _firestore
-        .collection(AppConstants.usersCollection)
-        .doc(_uid)
-        .collection(AppConstants.coursesCollection)
-        .get();
-
-    for (final courseDoc in coursesSnap.docs) {
-      final data = courseDoc.data();
-      final studentsRaw = (data[AppConstants.studentsField] ?? const []) as List<dynamic>;
-      final students = studentsRaw
-          .whereType<Map<String, dynamic>>()
-          .map(StudentModel.fromMap)
-          .toList();
-      final attendanceRaw = (data[AppConstants.attendanceRecordsField] ?? const <String, dynamic>{})
-          as Map<String, dynamic>;
-      final attendanceRecords = <String, Map<String, bool>>{};
-      for (final entry in attendanceRaw.entries) {
-        final inner = (entry.value as Map<String, dynamic>? ?? const <String, dynamic>{});
-        attendanceRecords[entry.key] = inner.map((k, v) => MapEntry(k, (v as bool?) ?? false));
-      }
-
-      final courseRef = _firestore
-          .collection(AppConstants.usersCollection)
-          .doc(_uid)
-          .collection(AppConstants.coursesCollection)
-          .doc(courseDoc.id);
-      final studentsCol = courseRef.collection(AppConstants.studentsField);
-      final normalCol = courseRef.collection(AppConstants.normalAttendanceCollection);
-
-      // Migration is triggered during provider build; keep it non-destructive by
-      // seeding only when subcollections are empty.
-      final existingStudents = await studentsCol.limit(1).get();
-      if (existingStudents.docs.isEmpty) {
-        await _seedStudentsSubcollection(courseId: courseDoc.id, students: students);
-      }
-
-      final existingNormal = await normalCol.limit(1).get();
-      if (existingNormal.docs.isEmpty) {
-        await _seedNormalAttendanceSubcollection(
-          courseId: courseDoc.id,
-          attendanceRecords: attendanceRecords,
-        );
-      }
-    }
   }
 
   Future<void> _seedStudentsSubcollection({
