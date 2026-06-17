@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/date_utils.dart' as app_date;
+import '../../../courses/domain/course_display.dart';
 import '../providers/attendance_provider.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 import '../../data/services/attendance_service.dart';
@@ -23,7 +24,7 @@ class _MakeupAttendancePageState extends ConsumerState<MakeupAttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final coursesAsync = ref.watch(coursesProvider);
+    final coursesAsync = ref.watch(activeCoursesProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Makeup Attendance')),
       body: coursesAsync.when(
@@ -45,7 +46,7 @@ class _MakeupAttendancePageState extends ConsumerState<MakeupAttendancePage> {
                     items: courses
                         .map((c) => DropdownMenuItem(
                               value: c.courseId,
-                              child: Text('${c.courseName} (${c.courseCode} • ${c.section})', overflow: TextOverflow.ellipsis),
+                              child: Text(courseDropdownLabel(c), overflow: TextOverflow.ellipsis),
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => _courseId = v),

@@ -11,6 +11,11 @@ class AppConstants {
   static const String attendanceMapRawField = 'attendanceMapRaw';
   static const String attendanceMapManualField = 'attendanceMapManual';
   static const String attendanceMapField = 'attendanceMap';
+  static const String termField = 'term';
+  static const String academicYearLabelField = 'academicYearLabel';
+  static const String academicYearStartField = 'academicYearStart';
+  static const String statusField = 'status';
+  static const String archivedAtField = 'archivedAt';
 
   /// How far into the future to pre-generate attendance records (days).
   static const int defaultAttendanceHorizonDays = 28;

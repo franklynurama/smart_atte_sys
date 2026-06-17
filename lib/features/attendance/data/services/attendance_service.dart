@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/constants/constants.dart';
+import '../../../courses/data/services/course_service.dart';
 import '../../../courses/data/models/student_model.dart';
 import '../models/attendance_session_model.dart';
 import '../models/unverified_record_model.dart';
@@ -17,6 +18,11 @@ class AttendanceService {
     FirebaseAuth? auth,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance;
+
+  Future<void> _assertCourseNotArchived(String courseId) async {
+    final courseService = CourseService(firestore: _firestore, auth: _auth);
+    await courseService.assertCourseNotArchived(courseId);
+  }
 
   String get _uid {
     final user = _auth.currentUser;
@@ -46,6 +52,7 @@ class AttendanceService {
     required String recordKey,
     required List<String> attendedStudentIds,
   }) async {
+    await _assertCourseNotArchived(courseId);
     final courseRef = _firestore
         .collection(AppConstants.usersCollection)
         .doc(_uid)
@@ -104,6 +111,7 @@ class AttendanceService {
     required String sessionId,
     required List<String> attendedStudentIds,
   }) async {
+    await _assertCourseNotArchived(courseId);
     final courseRef = _firestore
         .collection(AppConstants.usersCollection)
         .doc(_uid)
@@ -178,6 +186,7 @@ class AttendanceService {
     required String courseId,
     required StudentModel student,
   }) async {
+    await _assertCourseNotArchived(courseId);
     final ref = _courseCollection(courseId).doc(student.studentId);
     final existing = await ref.get();
     if (existing.exists) {
@@ -224,6 +233,7 @@ class AttendanceService {
     required String endTime,
     required List<String> attendedStudentIds,
   }) async {
+    await _assertCourseNotArchived(courseId);
     final students = await getStudents(courseId);
     final attendedSet = attendedStudentIds.toSet();
     final attendanceMapRaw = <String, bool>{
@@ -275,6 +285,7 @@ class AttendanceService {
     required String rawSessionId,
     required bool isMakeup,
   }) async {
+    await _assertCourseNotArchived(courseId);
     await _firestore
         .collection(AppConstants.usersCollection)
         .doc(_uid)
@@ -297,6 +308,7 @@ class AttendanceService {
     required String courseId,
     required String recordId,
   }) async {
+    await _assertCourseNotArchived(courseId);
     await _firestore
         .collection(AppConstants.usersCollection)
         .doc(_uid)
@@ -321,6 +333,7 @@ class AttendanceService {
     required bool isMakeup,
     required Map<String, Map<String, bool>> sessions,
   }) async {
+    await _assertCourseNotArchived(courseId);
     if (sessions.isEmpty) return;
     final batch = _firestore.batch();
     for (final entry in sessions.entries) {
@@ -345,6 +358,7 @@ class AttendanceService {
     required bool isMakeup,
     required Map<String, Map<String, bool>> sessions,
   }) async {
+    await _assertCourseNotArchived(courseId);
     if (sessions.isEmpty) return;
     for (final entry in sessions.entries) {
       final sessionId = entry.key;

@@ -88,9 +88,15 @@ class DashboardPage extends ConsumerWidget {
                   ),
                   DashboardCard(
                     icon: Icons.delete_outline,
-                    title: 'Delete Course',
-                    description: 'Permanently remove a course and its data.',
+                    title: 'Manage Courses',
+                    description: 'Archive courses or permanently delete them.',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.deleteCourse),
+                  ),
+                  DashboardCard(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Archived Courses',
+                    description: 'View final attendance and exports for archived courses.',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.archivedCourses),
                   ),
                   DashboardCard(
                     icon: Icons.edit_note_outlined,

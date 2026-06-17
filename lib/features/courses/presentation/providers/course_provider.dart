@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/csv_parser.dart';
+import '../../domain/academic_year.dart';
+import '../../domain/course_term.dart';
 import '../../data/models/course_model.dart';
 import '../../data/models/student_model.dart';
 import '../../data/services/course_service.dart';
@@ -21,6 +23,18 @@ class CoursesNotifier extends AsyncNotifier<List<CourseModel>> {
 final coursesProvider = AsyncNotifierProvider<CoursesNotifier, List<CourseModel>>(
   () => CoursesNotifier(),
 );
+
+final activeCoursesProvider = Provider<AsyncValue<List<CourseModel>>>((ref) {
+  return ref.watch(coursesProvider).whenData(
+        (list) => list.where((c) => c.status == CourseStatus.active).toList(),
+      );
+});
+
+final archivedCoursesProvider = Provider<AsyncValue<List<CourseModel>>>((ref) {
+  return ref.watch(coursesProvider).whenData(
+        (list) => list.where((c) => c.status == CourseStatus.archived).toList(),
+      );
+});
 
 class SelectedCourseState {
   final String? courseId;
@@ -45,6 +59,8 @@ class CourseDraftState {
   final List<CourseSessionModel> sessions;
   final DateTime? semesterStartDate;
   final DateTime? semesterEndDate;
+  final CourseTerm term;
+  final String academicYearLabel;
   final List<OfficialCourseOption> officialCourses;
   final String? selectedOfficialCourseKey;
   final List<StudentModel> students;
@@ -59,6 +75,8 @@ class CourseDraftState {
     required this.sessions,
     required this.semesterStartDate,
     required this.semesterEndDate,
+    required this.term,
+    required this.academicYearLabel,
     required this.officialCourses,
     required this.selectedOfficialCourseKey,
     required this.students,
@@ -66,17 +84,19 @@ class CourseDraftState {
     required this.errorMessage,
   });
 
-  factory CourseDraftState.initial() => const CourseDraftState(
+  factory CourseDraftState.initial() => CourseDraftState(
         courseName: '',
         courseCode: '',
         abbreviation: '',
         section: '',
         // One default session so "Create Course" is usable without an extra tap.
         sessions: [
-          CourseSessionModel(dayOfWeek: 1, startTimeHHmm: '08:00', endTimeHHmm: '09:00'),
+          const CourseSessionModel(dayOfWeek: 1, startTimeHHmm: '08:00', endTimeHHmm: '09:00'),
         ],
         semesterStartDate: null,
         semesterEndDate: null,
+        term: CourseTerm.fall,
+        academicYearLabel: defaultAcademicYearLabel(),
         officialCourses: [],
         selectedOfficialCourseKey: null,
         students: [],
@@ -92,6 +112,8 @@ class CourseDraftState {
     List<CourseSessionModel>? sessions,
     DateTime? semesterStartDate,
     DateTime? semesterEndDate,
+    CourseTerm? term,
+    String? academicYearLabel,
     List<OfficialCourseOption>? officialCourses,
     Object? selectedOfficialCourseKey = _noChange,
     List<StudentModel>? students,
@@ -106,6 +128,8 @@ class CourseDraftState {
       sessions: sessions ?? this.sessions,
       semesterStartDate: semesterStartDate ?? this.semesterStartDate,
       semesterEndDate: semesterEndDate ?? this.semesterEndDate,
+      term: term ?? this.term,
+      academicYearLabel: academicYearLabel ?? this.academicYearLabel,
       officialCourses: officialCourses ?? this.officialCourses,
       selectedOfficialCourseKey: selectedOfficialCourseKey == _noChange
           ? this.selectedOfficialCourseKey
@@ -146,6 +170,8 @@ class CourseDraftNotifier extends StateNotifier<CourseDraftState> {
   void setSection(String v) => state = state.copyWith(section: v, errorMessage: null);
   void setSemesterStartDate(DateTime v) => state = state.copyWith(semesterStartDate: v, errorMessage: null);
   void setSemesterEndDate(DateTime v) => state = state.copyWith(semesterEndDate: v, errorMessage: null);
+  void setTerm(CourseTerm v) => state = state.copyWith(term: v, errorMessage: null);
+  void setAcademicYearLabel(String v) => state = state.copyWith(academicYearLabel: v, errorMessage: null);
 
   Future<void> loadOfficialCourseListFromAsset() async {
     try {
@@ -391,6 +417,18 @@ class CourseMutationNotifier extends AsyncNotifier<CourseMutationState> {
       );
       return;
     }
+    if (draft.term == CourseTerm.unknown) {
+      state = const AsyncValue.data(
+        CourseMutationState(isLoading: false, errorMessage: 'Term is required.', successMessage: null),
+      );
+      return;
+    }
+    if (draft.academicYearLabel.trim().isEmpty) {
+      state = const AsyncValue.data(
+        CourseMutationState(isLoading: false, errorMessage: 'Academic year is required.', successMessage: null),
+      );
+      return;
+    }
     if (draft.semesterStartDate == null || draft.semesterEndDate == null) {
       state = const AsyncValue.data(
         CourseMutationState(
@@ -431,6 +469,9 @@ class CourseMutationNotifier extends AsyncNotifier<CourseMutationState> {
         courseCode: draft.courseCode.trim(),
         abbreviation: draft.abbreviation.trim(),
         section: draft.section.trim(),
+        term: draft.term,
+        academicYearLabel: draft.academicYearLabel.trim(),
+        academicYearStart: parseAcademicYearStart(draft.academicYearLabel.trim()),
         semesterStartDate: draft.semesterStartDate!,
         semesterEndDate: draft.semesterEndDate!,
         sessions: draft.sessions,
@@ -484,6 +525,24 @@ class CourseMutationNotifier extends AsyncNotifier<CourseMutationState> {
       );
     } catch (e, st) {
       developer.log('deleteCourse failed', name: 'CourseMutationNotifier', error: e, stackTrace: st);
+      state = AsyncValue.data(
+        CourseMutationState(isLoading: false, errorMessage: _formatFirestoreError(e), successMessage: null),
+      );
+    }
+  }
+
+  Future<void> archiveCourse(String courseId) async {
+    state = const AsyncValue.data(
+      CourseMutationState(isLoading: true, errorMessage: null, successMessage: null),
+    );
+    try {
+      await _service.archiveCourse(courseId);
+      ref.invalidate(coursesProvider);
+      state = const AsyncValue.data(
+        CourseMutationState(isLoading: false, errorMessage: null, successMessage: null),
+      );
+    } catch (e, st) {
+      developer.log('archiveCourse failed', name: 'CourseMutationNotifier', error: e, stackTrace: st);
       state = AsyncValue.data(
         CourseMutationState(isLoading: false, errorMessage: _formatFirestoreError(e), successMessage: null),
       );

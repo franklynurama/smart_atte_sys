@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../courses/data/models/course_model.dart';
+import '../../../courses/domain/course_display.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 import '../../data/models/attendance_session_model.dart';
 import '../../data/services/attendance_service.dart';
 import '../../data/services/backend_api_service.dart';
 import '../../data/services/file_service.dart';
 import '../providers/attendance_provider.dart';
+import '../utils/attendance_import_reset.dart';
 
 class DecryptAttendancePage extends ConsumerWidget {
   const DecryptAttendancePage({super.key});
@@ -187,7 +189,7 @@ class DecryptAttendancePage extends ConsumerWidget {
     final encryptedFile = ref.watch(encryptedFileProvider);
     final attendanceService = AttendanceService();
     final fileService = FileService();
-    final coursesAsync = ref.watch(coursesProvider);
+    final coursesAsync = ref.watch(activeCoursesProvider);
     final mutationAsync = ref.watch(attendanceMutationProvider);
     final mutationState = mutationAsync.valueOrNull ?? AttendanceMutationState.initial();
 
@@ -213,16 +215,7 @@ class DecryptAttendancePage extends ConsumerWidget {
         );
 
         if (isProcessComplete) {
-          ref.invalidate(coursesProvider);
-          if (selection.courseId != null) {
-            ref.invalidate(normalAttendanceSessionsProvider(selection.courseId!));
-            ref.invalidate(makeupAttendanceSessionsProvider(selection.courseId!));
-            ref.invalidate(unverifiedRecordsProvider(selection.courseId!));
-          }
-          ref.read(attendanceGridEditProvider.notifier).clear();
-          ref.read(encryptedFileProvider.notifier).clear();
-          ref.read(privateKeyFileProvider.notifier).clear();
-          ref.read(attendanceMutationProvider.notifier).resetDecryptFlow();
+          resetAfterDecryptProcessComplete(ref, courseId: selection.courseId);
         } else {
           ref.read(attendanceMutationProvider.notifier).clearFeedback();
         }
@@ -265,7 +258,7 @@ class DecryptAttendancePage extends ConsumerWidget {
                         .map(
                           (c) => DropdownMenuItem<String>(
                             value: c.courseId,
-                            child: Text('${c.courseCode} • ${c.abbreviation} • ${c.courseName}${c.section.isNotEmpty ? ' • ${c.section}' : ''}', overflow: TextOverflow.ellipsis),
+                            child: Text(courseDropdownLabel(c), overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -442,7 +435,7 @@ class DecryptAttendancePage extends ConsumerWidget {
                                   } on FormatException catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('${e.message}')),
+                                      SnackBar(content: Text(e.message)),
                                     );
                                     return;
                                   }
@@ -474,12 +467,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                     courseId: courseId,
                                     validIds: validIds,
                                   );
-                                  ref.invalidate(coursesProvider);
-                                  ref.invalidate(normalAttendanceSessionsProvider(courseId));
-                                  ref.invalidate(makeupAttendanceSessionsProvider(courseId));
-                                  ref.invalidate(unverifiedRecordsProvider(courseId));
-                                  ref.read(attendanceGridEditProvider.notifier).clear();
-                                  ref.read(attendanceMutationProvider.notifier).clearFeedback();
                                   if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -488,6 +475,7 @@ class DecryptAttendancePage extends ConsumerWidget {
                                       ),
                                     ),
                                   );
+                                  resetAfterDecryptProcessComplete(ref, courseId: courseId);
                                 },
                           child: const Text('Update Attendance Directly'),
                         ),
@@ -585,7 +573,7 @@ class DecryptAttendancePage extends ConsumerWidget {
                                   } on FormatException catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('${e.message}')),
+                                      SnackBar(content: Text(e.message)),
                                     );
                                     return;
                                   }
@@ -624,11 +612,6 @@ class DecryptAttendancePage extends ConsumerWidget {
                                         action: DecryptAction.download,
                                         downloadFormat: pickedFormat,
                                       );
-                                  ref.invalidate(coursesProvider);
-                                  ref.invalidate(normalAttendanceSessionsProvider(courseId));
-                                  ref.invalidate(makeupAttendanceSessionsProvider(courseId));
-                                  ref.invalidate(unverifiedRecordsProvider(courseId));
-                                  ref.read(attendanceGridEditProvider.notifier).clear();
                                 },
                           child: const Text('Both Update and Download'),
                         ),

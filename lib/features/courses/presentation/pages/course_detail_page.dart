@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/date_utils.dart' as app_date;
 import '../../../../routes/app_routes.dart';
 import '../../../attendance/data/models/attendance_session_model.dart';
+import '../../domain/course_term.dart';
 import '../../data/models/course_model.dart';
 import '../providers/course_provider.dart';
 import 'delete_course_dialog.dart';
@@ -47,6 +48,7 @@ class CourseDetailPage extends ConsumerWidget {
 
           final recordKeys = _nextRecordKeysForCourse(course, DateTime.now());
           final normalSessions = normalSessionsAsync.valueOrNull ?? const <AttendanceSessionModel>[];
+          final isArchived = course.status == CourseStatus.archived;
           final normalAttendance = <String, Map<String, bool>>{
             for (final s in normalSessions) s.sessionId: s.attendanceMap,
           };
@@ -63,6 +65,10 @@ class CourseDetailPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text('Code: ${course.courseCode} • ${course.abbreviation}'),
+                  const SizedBox(height: 4),
+                  Text('Term: ${course.term.displayLabel} ${course.academicYearLabel}'),
+                  const SizedBox(height: 4),
+                  Chip(label: Text(isArchived ? 'Archived' : 'Active')),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -87,7 +93,9 @@ class CourseDetailPage extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
+                          onPressed: isArchived
+                              ? null
+                              : () {
                             ref.read(attendanceSelectionProvider.notifier).selectCourse(course.courseId);
                             if (recordKeys.isNotEmpty) {
                               ref.read(attendanceSelectionProvider.notifier).selectRecordKey(recordKeys.first);
@@ -101,7 +109,9 @@ class CourseDetailPage extends ConsumerWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
+                          onPressed: isArchived
+                              ? null
+                              : () {
                             ref.read(attendanceSelectionProvider.notifier).selectCourse(course.courseId);
                             if (recordKeys.isNotEmpty) {
                               ref.read(attendanceSelectionProvider.notifier).selectRecordKey(recordKeys.first);

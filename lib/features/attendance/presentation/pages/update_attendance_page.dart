@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../courses/data/models/course_model.dart';
+import '../../../courses/domain/course_display.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 import '../../data/models/attendance_session_model.dart';
 import '../../data/services/attendance_service.dart';
 import '../../data/services/file_service.dart';
 import '../providers/attendance_provider.dart';
+import '../utils/attendance_import_reset.dart';
 
 class UpdateAttendancePage extends ConsumerWidget {
   const UpdateAttendancePage({super.key});
@@ -148,7 +150,7 @@ class UpdateAttendancePage extends ConsumerWidget {
     final fileService = FileService();
     final attendanceService = AttendanceService();
     final selection = ref.watch(attendanceSelectionProvider);
-    final coursesAsync = ref.watch(coursesProvider);
+    final coursesAsync = ref.watch(activeCoursesProvider);
     final mutationAsync = ref.watch(attendanceMutationProvider);
     final mutationState = mutationAsync.valueOrNull ?? AttendanceMutationState.initial();
 
@@ -207,7 +209,7 @@ class UpdateAttendancePage extends ConsumerWidget {
                         .map(
                           (c) => DropdownMenuItem<String>(
                             value: c.courseId,
-                            child: Text('${c.courseCode} • ${c.abbreviation} • ${c.courseName}${c.section.isNotEmpty ? ' • ${c.section}' : ''}', overflow: TextOverflow.ellipsis),
+                            child: Text(courseDropdownLabel(c), overflow: TextOverflow.ellipsis),
                           ),
                         )
                         .toList(),
@@ -339,7 +341,6 @@ class UpdateAttendancePage extends ConsumerWidget {
                               courseId: courseId,
                               validIds: validIds,
                             );
-                            ref.read(attendanceMutationProvider.notifier).clearFeedback();
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -347,13 +348,7 @@ class UpdateAttendancePage extends ConsumerWidget {
                                 ),
                               ),
                             );
-
-                            // Refresh views.
-                            ref.invalidate(coursesProvider);
-                            ref.invalidate(normalAttendanceSessionsProvider(courseId));
-                            ref.invalidate(makeupAttendanceSessionsProvider(courseId));
-                            ref.invalidate(unverifiedRecordsProvider(courseId));
-                            ref.read(attendanceGridEditProvider.notifier).clear();
+                            resetAfterCsvAttendanceUpdate(ref, courseId);
                           },
                     icon: const Icon(Icons.upload_file_outlined),
                     label: const Text('Upload CSV and Update'),
